@@ -8,7 +8,7 @@ app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ─── Config ───────────────────────────────────────────────────
-const BOT_TOKEN = 'MTQ3NjgxODc3MTk1MDgyOTU2OA.Gqy3yS.Xhg1hUeBXJzCiaIB88C3AQcFRuV8xIn_hkcLZA';
+const BOT_TOKEN = process.env.BOT_TOKEN;
 const GUILD_ID         = '1474876236470812937';
 const ROLE_GIVE        = '1476657256727711927';
 const ROLE_REMOVE      = '1476657257583345860';
