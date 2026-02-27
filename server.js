@@ -39,17 +39,23 @@ function getAttemptData(ip) {
 }
 
 // ─── Discord Helpers ─────────────────────────────────────────
-async function findMember(username) {
-  const res = await fetch(`${DISCORD_API}/guilds/${GUILD_ID}/members/search?query=${encodeURIComponent(username)}&limit=5`, { headers });
+async function findMember(input) {
+  input = input.trim();
+
+  // إذا أدخل ID مباشرة (17-20 رقم)
+  if (/^\d{17,20}$/.test(input)) {
+    const res = await fetch(`${DISCORD_API}/guilds/${GUILD_ID}/members/${input}`, { headers });
+    if (!res.ok) return null;
+    return await res.json();
+  }
+
+  // إذا أدخل اسم
+  const res = await fetch(`${DISCORD_API}/guilds/${GUILD_ID}/members/search?query=${encodeURIComponent(input)}&limit=10`, { headers });
   if (!res.ok) return null;
   const members = await res.json();
   if (!members.length) return null;
-  const lower = username.toLowerCase().replace('#', '');
-  const match = members.find(m => {
-    const tag = (m.user.username + (m.user.discriminator !== '0' ? '#' + m.user.discriminator : '')).toLowerCase();
-    return tag.includes(lower) || m.user.username.toLowerCase() === lower;
-  });
-  return match || members[0];
+  const lower = input.toLowerCase().replace('#', '');
+  return members.find(m => m.user.username.toLowerCase() === lower) || members[0];
 }
 
 async function sendWebhook(url, embed) {
@@ -93,7 +99,7 @@ app.post('/api/whitelist', async (req, res) => {
     });
   }
 
-  // زيادة المحاولات فقط عند الفشل
+  // ─── إذا خسر ─────────────────────────────────────────────
   if (!passed) {
     data.attempts += 1;
     if (data.attempts >= MAX_ATTEMPTS) {
@@ -128,14 +134,14 @@ app.post('/api/whitelist', async (req, res) => {
     });
   }
 
-  // ─── نجح ─────────────────────────────────────────────────
+  // ─── إذا نجح ─────────────────────────────────────────────
   try {
     const member = await findMember(discord);
     if (!member) {
       return res.status(404).json({ success: false, message: 'User not found in Discord server. Make sure you joined the server first.' });
     }
 
-    const userId = member.user.id;
+    const userId = member.user ? member.user.id : member.id;
 
     // اسحب الرتبة القديمة
     await fetch(`${DISCORD_API}/guilds/${GUILD_ID}/members/${userId}/roles/${ROLE_REMOVE}`, { method: 'DELETE', headers });
@@ -145,7 +151,7 @@ app.post('/api/whitelist', async (req, res) => {
 
     if (!giveRes.ok) {
       const err = await giveRes.json().catch(() => ({}));
-      console.error('Error giving role:', err);
+      console.error('Error giving role:', JSON.stringify(err));
       return res.status(500).json({ success: false, message: 'Failed to assign role. Check bot permissions.' });
     }
 
@@ -179,7 +185,7 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`🚀 Hard Role Whitelist Server running on port ${PORT}`);
 });
