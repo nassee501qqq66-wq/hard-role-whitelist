@@ -41,29 +41,40 @@ function getAttemptData(ip) {
 // ─── Discord Helpers ─────────────────────────────────────────
 async function findMember(input) {
   input = input.trim();
+  console.log(`🔍 Looking for member: ${input}`);
 
-  // إذا أدخل ID مباشرة (17-20 رقم)
+  // إذا أدخل ID مباشرة
   if (/^\d{17,20}$/.test(input)) {
+    console.log(`🔢 Input is a user ID`);
     const res = await fetch(`${DISCORD_API}/guilds/${GUILD_ID}/members/${input}`, { headers });
-    if (!res.ok) return null;
+    console.log(`📡 Member fetch status: ${res.status}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.log(`❌ Member fetch error: ${JSON.stringify(err)}`);
+      return null;
+    }
     return await res.json();
   }
 
   // إذا أدخل اسم
+  console.log(`🔤 Input is a username`);
   const res = await fetch(`${DISCORD_API}/guilds/${GUILD_ID}/members/search?query=${encodeURIComponent(input)}&limit=10`, { headers });
+  console.log(`📡 Search status: ${res.status}`);
   if (!res.ok) return null;
   const members = await res.json();
+  console.log(`👥 Found ${members.length} members`);
   if (!members.length) return null;
   const lower = input.toLowerCase().replace('#', '');
   return members.find(m => m.user.username.toLowerCase() === lower) || members[0];
 }
 
 async function sendWebhook(url, embed) {
-  await fetch(url, {
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ embeds: [embed] })
   }).catch(e => console.error('Webhook error:', e));
+  if (res) console.log(`📨 Webhook status: ${res.status}`);
 }
 
 // ─── Route: Check Cooldown ────────────────────────────────────
@@ -82,6 +93,8 @@ app.post('/api/whitelist', async (req, res) => {
   const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
   const { discord, score, passed } = req.body;
 
+  console.log(`📥 Received: discord=${discord}, score=${score}, passed=${passed}`);
+
   if (!discord || score === undefined) {
     return res.status(400).json({ success: false, message: 'Missing fields' });
   }
@@ -92,9 +105,7 @@ app.post('/api/whitelist', async (req, res) => {
   if (data.cooldownUntil && Date.now() < data.cooldownUntil) {
     const remaining = Math.ceil((data.cooldownUntil - Date.now()) / 1000);
     return res.status(429).json({
-      success: false,
-      cooldown: true,
-      remaining,
+      success: false, cooldown: true, remaining,
       message: `You are on cooldown. Try again in ${Math.ceil(remaining / 60)} minutes.`
     });
   }
@@ -106,7 +117,6 @@ app.post('/api/whitelist', async (req, res) => {
       data.cooldownUntil = Date.now() + COOLDOWN_MS;
       console.log(`⏳ Cooldown for IP ${ip} | Attempts: ${data.attempts}`);
     }
-
     const remaining = data.cooldownUntil ? Math.ceil((data.cooldownUntil - Date.now()) / 1000) : null;
 
     await sendWebhook(WEBHOOK_FAIL, {
@@ -116,18 +126,15 @@ app.post('/api/whitelist', async (req, res) => {
         { name: '👤 Discord', value: discord, inline: true },
         { name: '📊 Score', value: `${score} / 6`, inline: true },
         { name: '🔁 Attempt', value: `${data.attempts} / ${MAX_ATTEMPTS}`, inline: true },
-        { name: '⏳ Cooldown', value: data.cooldownUntil ? `${COOLDOWN_MINUTES} minutes applied` : 'Not yet', inline: true }
+        { name: '⏳ Cooldown', value: data.cooldownUntil ? `${COOLDOWN_MINUTES} min applied` : 'Not yet', inline: true }
       ],
       timestamp: new Date().toISOString()
     });
 
     return res.json({
-      success: false,
-      passed: false,
-      attempts: data.attempts,
-      maxAttempts: MAX_ATTEMPTS,
-      cooldown: !!data.cooldownUntil,
-      remaining,
+      success: false, passed: false,
+      attempts: data.attempts, maxAttempts: MAX_ATTEMPTS,
+      cooldown: !!data.cooldownUntil, remaining,
       message: data.cooldownUntil
         ? `You failed ${MAX_ATTEMPTS} times. Please wait ${COOLDOWN_MINUTES} minutes.`
         : `You failed. Attempt ${data.attempts}/${MAX_ATTEMPTS}.`
@@ -138,20 +145,24 @@ app.post('/api/whitelist', async (req, res) => {
   try {
     const member = await findMember(discord);
     if (!member) {
+      console.log(`❌ Member not found: ${discord}`);
       return res.status(404).json({ success: false, message: 'User not found in Discord server. Make sure you joined the server first.' });
     }
 
     const userId = member.user ? member.user.id : member.id;
+    console.log(`✅ Found user ID: ${userId}`);
 
     // اسحب الرتبة القديمة
-    await fetch(`${DISCORD_API}/guilds/${GUILD_ID}/members/${userId}/roles/${ROLE_REMOVE}`, { method: 'DELETE', headers });
+    const removeRes = await fetch(`${DISCORD_API}/guilds/${GUILD_ID}/members/${userId}/roles/${ROLE_REMOVE}`, { method: 'DELETE', headers });
+    console.log(`🗑️ Remove role status: ${removeRes.status}`);
 
     // أعطِ الرتبة الجديدة
     const giveRes = await fetch(`${DISCORD_API}/guilds/${GUILD_ID}/members/${userId}/roles/${ROLE_GIVE}`, { method: 'PUT', headers });
+    console.log(`🎭 Give role status: ${giveRes.status}`);
 
     if (!giveRes.ok) {
       const err = await giveRes.json().catch(() => ({}));
-      console.error('Error giving role:', JSON.stringify(err));
+      console.error(`❌ Give role error: ${JSON.stringify(err)}`);
       return res.status(500).json({ success: false, message: 'Failed to assign role. Check bot permissions.' });
     }
 
@@ -159,7 +170,6 @@ app.post('/api/whitelist', async (req, res) => {
     data.attempts = 0;
     data.cooldownUntil = null;
 
-    // ويب هوك النجاح
     await sendWebhook(WEBHOOK_PASS, {
       title: '✅ Passed Whitelist Application',
       color: 0x00e5a0,
@@ -172,11 +182,11 @@ app.post('/api/whitelist', async (req, res) => {
       timestamp: new Date().toISOString()
     });
 
-    console.log(`✅ Whitelisted: ${discord} (${userId}) | Score: ${score}/6`);
+    console.log(`🎉 Whitelisted: ${discord} (${userId}) | Score: ${score}/6`);
     return res.json({ success: true, message: 'Role assigned successfully!', userId });
 
   } catch (err) {
-    console.error('Server error:', err);
+    console.error(`💥 Server error: ${err.message}`);
     return res.status(500).json({ success: false, message: 'Server error: ' + err.message });
   }
 });
@@ -189,3 +199,5 @@ const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`🚀 Hard Role Whitelist Server running on port ${PORT}`);
 });
+
+
