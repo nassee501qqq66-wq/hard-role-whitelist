@@ -8,13 +8,13 @@ app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ─── Config ───────────────────────────────────────────────────
-const BOT_TOKEN        = 'MTQ3NjgxODc3MTk1MDgyOTU2OA.GDw6v9.KEzA5Rzb46MUGyQBQgjX8CMQFPfIhiSbdLEFGU';
+const BOT_TOKEN        = 'MTQ3NjgxODc3MTk1MDgyOTU2OA.Gqy3yS.Xhg1hUeBXJzCiaIB88C3AQcFRuV8xIn_hkcLZA';
 const GUILD_ID         = '1474876236470812937';
 const ROLE_GIVE        = '1476657256727711927';
 const ROLE_REMOVE      = '1476657257583345860';
 const WEBHOOK_PASS     = 'https://canary.discord.com/api/webhooks/1476822794514989056/ktr9SumLQ0FrQd7lCl1kAIVDt0AsarU8C4qOUJDTiYJUsc8FHdFEGZ0Fi8b-U4aWFd6c';
 const WEBHOOK_FAIL     = 'https://canary.discord.com/api/webhooks/1476822856959528962/fC-CHGNfhxAn081gw6XTin8waeTstix0armkBkjJChfRtXDv6MkCocRnbj6IrZqgYH_m';
-const MAX_ATTEMPTS     = 3;
+const MAX_ATTEMPTS     = 2;
 const COOLDOWN_MINUTES = 10;
 const COOLDOWN_MS      = COOLDOWN_MINUTES * 60 * 1000;
 // ─────────────────────────────────────────────────────────────
